@@ -1,0 +1,1 @@
+// trade.entity.ts placeholder for trade-management

@@ -1,0 +1,1 @@
+// dto/create-trade.dto.ts placeholder for trade-management

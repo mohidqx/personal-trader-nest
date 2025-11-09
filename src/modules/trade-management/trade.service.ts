@@ -1,0 +1,1 @@
+// trade.service.ts placeholder for trade-management
