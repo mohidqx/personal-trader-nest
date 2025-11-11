@@ -9,6 +9,9 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Wallet from "./pages/Wallet";
 import MT5Accounts from "./pages/MT5Accounts";
+import Admin from "./pages/Admin";
+import CopyTrading from "./pages/CopyTrading";
+import Security from "./pages/Security";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +29,9 @@ const App = () => (
           <Route path="/profile" element={<Profile />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/mt5-accounts" element={<MT5Accounts />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/copy-trading" element={<CopyTrading />} />
+          <Route path="/security" element={<Security />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

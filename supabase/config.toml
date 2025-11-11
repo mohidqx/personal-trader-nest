@@ -1,1 +1,7 @@
 project_id = "enyzedbsayvylpsqppxl"
+
+[functions.generate-crypto-address]
+verify_jwt = true
+
+[functions.sync-mt5-balance]
+verify_jwt = true

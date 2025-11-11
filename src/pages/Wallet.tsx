@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { User } from "@supabase/supabase-js";
 import { z } from "zod";
-import { ArrowLeft, Wallet as WalletIcon, DollarSign, TrendingUp } from "lucide-react";
+import { ArrowLeft, Wallet as WalletIcon, DollarSign, TrendingUp, Download, Bitcoin } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const transactionSchema = z.object({
   amount: z.coerce.number().positive("Amount must be positive").max(1000000, "Amount too large"),
@@ -26,12 +27,16 @@ export default function Wallet() {
   const [loading, setLoading] = useState(true);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showCryptoModal, setShowCryptoModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
-  const [depositMethod, setDepositMethod] = useState("");
+  const [depositMethod, setDepositMethod] = useState("crypto");
   const [depositNotes, setDepositNotes] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawMethod, setWithdrawMethod] = useState("");
   const [withdrawNotes, setWithdrawNotes] = useState("");
+  const [cryptoAddress, setCryptoAddress] = useState("");
+  const [cryptoQR, setCryptoQR] = useState("");
+  const [cryptoNetwork, setCryptoNetwork] = useState("TRC20");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -87,8 +92,51 @@ export default function Wallet() {
     }
   };
 
+  const handleCryptoDeposit = async () => {
+    if (!wallet || !user || !depositAmount) return;
+
+    try {
+      const validatedData = transactionSchema.parse({
+        amount: depositAmount,
+        payment_method: "crypto",
+        notes: `${cryptoNetwork} deposit`,
+      });
+
+      const { data, error } = await supabase.functions.invoke("generate-crypto-address", {
+        body: { 
+          amount: validatedData.amount,
+          currency: "USDT",
+          network: cryptoNetwork 
+        },
+      });
+
+      if (error) throw error;
+
+      setCryptoAddress(data.address);
+      setCryptoQR(data.qrCode);
+      setShowDepositModal(false);
+      setShowCryptoModal(true);
+
+      toast({
+        title: "Crypto Address Generated",
+        description: "Send funds to the address below",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate crypto address",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (depositMethod === "crypto") {
+      handleCryptoDeposit();
+      return;
+    }
+    
     if (!wallet || !user) return;
 
     try {
@@ -116,7 +164,7 @@ export default function Wallet() {
 
       setShowDepositModal(false);
       setDepositAmount("");
-      setDepositMethod("");
+      setDepositMethod("crypto");
       setDepositNotes("");
       loadTransactions(user.id);
     } catch (error) {
@@ -194,6 +242,35 @@ export default function Wallet() {
     }
   };
 
+  const handleExport = () => {
+    const csv = [
+      ["Date", "Type", "Amount", "Status", "Method", "Notes"].join(","),
+      ...transactions.map((t) =>
+        [
+          new Date(t.created_at).toLocaleDateString(),
+          t.type,
+          t.amount,
+          t.status,
+          t.payment_method || "",
+          t.notes || "",
+        ].join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `transactions-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Success",
+      description: "Transactions exported successfully",
+    });
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
@@ -230,6 +307,18 @@ export default function Wallet() {
               <Button onClick={() => setShowWithdrawModal(true)} variant="outline" className="flex-1">
                 <TrendingUp className="mr-2 h-4 w-4" />
                 Withdraw
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Export</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleExport} variant="outline" className="w-full">
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
               </Button>
             </CardContent>
           </Card>
@@ -287,13 +376,32 @@ export default function Wallet() {
             </div>
             <div>
               <Label htmlFor="depositMethod">Payment Method</Label>
-              <Input
-                id="depositMethod"
-                value={depositMethod}
-                onChange={(e) => setDepositMethod(e.target.value)}
-                required
-              />
+              <Select value={depositMethod} onValueChange={setDepositMethod} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="crypto">Crypto (USDT)</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="card">Credit/Debit Card</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            {depositMethod === "crypto" && (
+              <div>
+                <Label htmlFor="network">Network</Label>
+                <Select value={cryptoNetwork} onValueChange={setCryptoNetwork}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TRC20">TRC20 (Tron)</SelectItem>
+                    <SelectItem value="ERC20">ERC20 (Ethereum)</SelectItem>
+                    <SelectItem value="BEP20">BEP20 (BSC)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label htmlFor="depositNotes">Notes (Optional)</Label>
               <Input
@@ -302,7 +410,16 @@ export default function Wallet() {
                 onChange={(e) => setDepositNotes(e.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full">Submit Deposit Request</Button>
+            <Button type="submit" className="w-full">
+              {depositMethod === "crypto" ? (
+                <>
+                  <Bitcoin className="mr-2 h-4 w-4" />
+                  Generate Crypto Address
+                </>
+              ) : (
+                "Submit Deposit Request"
+              )}
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
@@ -344,6 +461,53 @@ export default function Wallet() {
             </div>
             <Button type="submit" className="w-full">Submit Withdrawal Request</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCryptoModal} onOpenChange={setShowCryptoModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crypto Deposit Address</DialogTitle>
+            <DialogDescription>
+              Send USDT to the address below (Network: {cryptoNetwork})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {cryptoQR && (
+              <div className="flex justify-center">
+                <img src={cryptoQR} alt="QR Code" className="rounded-lg" />
+              </div>
+            )}
+            <div>
+              <Label>Deposit Address</Label>
+              <div className="flex gap-2 mt-2">
+                <Input value={cryptoAddress} readOnly />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(cryptoAddress);
+                    toast({
+                      title: "Copied",
+                      description: "Address copied to clipboard",
+                    });
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>Important:</strong>
+              </p>
+              <ul className="text-sm text-muted-foreground mt-2 space-y-1">
+                <li>• Only send USDT on {cryptoNetwork} network</li>
+                <li>• Minimum deposit: $10</li>
+                <li>• Funds will be credited after confirmation</li>
+                <li>• This address expires in 1 hour</li>
+              </ul>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

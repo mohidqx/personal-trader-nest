@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { User } from "@supabase/supabase-js";
 import { z } from "zod";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const mt5Schema = z.object({
@@ -129,6 +129,26 @@ export default function MT5Accounts() {
     }
   };
 
+  const handleSyncBalance = async (accountId: string) => {
+    const { data, error } = await supabase.functions.invoke("sync-mt5-balance", {
+      body: { accountId },
+    });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sync balance",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: `Balance synced: $${data.balance}`,
+      });
+      if (user) loadAccounts(user.id);
+    }
+  };
+
   const handleDeleteAccount = async (accountId: string) => {
     const { error } = await supabase
       .from("mt5_accounts")
@@ -188,13 +208,22 @@ export default function MT5Accounts() {
                       <CardTitle>{account.account_name || account.account_number}</CardTitle>
                       <CardDescription>{account.server}</CardDescription>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteAccount(account.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleSyncBalance(account.id)}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteAccount(account.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>

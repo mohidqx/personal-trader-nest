@@ -14,7 +14,9 @@ import {
   ArrowDownRight,
   UserCircle,
   Wallet,
-  Link2
+  Link2,
+  Shield,
+  Copy
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,7 +84,15 @@ const Dashboard = () => {
             </Button>
             <Button variant="ghost" onClick={() => navigate("/mt5-accounts")}>
               <Link2 className="h-4 w-4 mr-2" />
-              MT5 Accounts
+              MT5
+            </Button>
+            <Button variant="ghost" onClick={() => navigate("/copy-trading")}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy Trading
+            </Button>
+            <Button variant="ghost" onClick={() => navigate("/security")}>
+              <Shield className="h-4 w-4 mr-2" />
+              Security
             </Button>
             <Button
               variant="outline"
