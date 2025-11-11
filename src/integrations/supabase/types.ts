@@ -62,6 +62,90 @@ export type Database = {
           },
         ]
       }
+      crypto_addresses: {
+        Row: {
+          address: string
+          amount: number
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          network: string
+          qr_code: string | null
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          amount: number
+          created_at?: string
+          currency?: string
+          expires_at: string
+          id?: string
+          network?: string
+          qr_code?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          amount?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string
+          id?: string
+          network?: string
+          qr_code?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      master_trader_stats: {
+        Row: {
+          account_id: string
+          created_at: string
+          followers_count: number | null
+          id: string
+          is_accepting_followers: boolean | null
+          total_profit: number | null
+          total_trades: number | null
+          updated_at: string
+          user_id: string
+          win_rate: number | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          followers_count?: number | null
+          id?: string
+          is_accepting_followers?: boolean | null
+          total_profit?: number | null
+          total_trades?: number | null
+          updated_at?: string
+          user_id: string
+          win_rate?: number | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          followers_count?: number | null
+          id?: string
+          is_accepting_followers?: boolean | null
+          total_profit?: number | null
+          total_trades?: number | null
+          updated_at?: string
+          user_id?: string
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
       mt5_accounts: {
         Row: {
           account_name: string | null
@@ -115,6 +199,8 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
           updated_at: string
           user_id: string
         }
@@ -125,6 +211,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
           updated_at?: string
           user_id: string
         }
@@ -135,6 +223,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
           updated_at?: string
           user_id?: string
         }
