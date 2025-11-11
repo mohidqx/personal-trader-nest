@@ -11,7 +11,10 @@ import {
   Activity,
   BarChart3,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  UserCircle,
+  Wallet,
+  Link2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -68,14 +71,28 @@ const Dashboard = () => {
             <TrendingUp className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold text-foreground">TradePro</h1>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="border-border/50 hover:bg-destructive hover:text-destructive-foreground"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => navigate("/profile")}>
+              <UserCircle className="h-4 w-4 mr-2" />
+              Profile
+            </Button>
+            <Button variant="ghost" onClick={() => navigate("/wallet")}>
+              <Wallet className="h-4 w-4 mr-2" />
+              Wallet
+            </Button>
+            <Button variant="ghost" onClick={() => navigate("/mt5-accounts")}>
+              <Link2 className="h-4 w-4 mr-2" />
+              MT5 Accounts
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleLogout}
+              className="border-border/50 hover:bg-destructive hover:text-destructive-foreground"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
