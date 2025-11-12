@@ -151,6 +151,8 @@ export type Database = {
           account_name: string | null
           account_number: string
           account_type: string
+          api_key: string | null
+          api_secret: string | null
           balance: number | null
           created_at: string
           equity: number | null
@@ -165,6 +167,8 @@ export type Database = {
           account_name?: string | null
           account_number: string
           account_type: string
+          api_key?: string | null
+          api_secret?: string | null
           balance?: number | null
           created_at?: string
           equity?: number | null
@@ -179,6 +183,8 @@ export type Database = {
           account_name?: string | null
           account_number?: string
           account_type?: string
+          api_key?: string | null
+          api_secret?: string | null
           balance?: number | null
           created_at?: string
           equity?: number | null
@@ -191,44 +197,148 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message: string
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          address: string | null
           avatar_url: string | null
+          city: string | null
           country: string | null
           created_at: string
+          date_of_birth: string | null
           full_name: string | null
           id: string
           phone: string | null
+          postal_code: string | null
+          profile_picture_url: string | null
           two_factor_enabled: boolean | null
           two_factor_secret: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          address?: string | null
           avatar_url?: string | null
+          city?: string | null
           country?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
+          postal_code?: string | null
+          profile_picture_url?: string | null
           two_factor_enabled?: boolean | null
           two_factor_secret?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          address?: string | null
           avatar_url?: string | null
+          city?: string | null
           country?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
+          postal_code?: string | null
+          profile_picture_url?: string | null
           two_factor_enabled?: boolean | null
           two_factor_secret?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: []
+      }
+      trades: {
+        Row: {
+          close_price: number | null
+          closed_at: string | null
+          created_at: string
+          id: string
+          mt5_account_id: string | null
+          open_price: number
+          opened_at: string
+          profit: number | null
+          status: string
+          symbol: string
+          type: string
+          updated_at: string
+          user_id: string
+          volume: number
+        }
+        Insert: {
+          close_price?: number | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          mt5_account_id?: string | null
+          open_price: number
+          opened_at?: string
+          profit?: number | null
+          status?: string
+          symbol: string
+          type: string
+          updated_at?: string
+          user_id: string
+          volume: number
+        }
+        Update: {
+          close_price?: number | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          mt5_account_id?: string | null
+          open_price?: number
+          opened_at?: string
+          profit?: number | null
+          status?: string
+          symbol?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          volume?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trades_mt5_account_id_fkey"
+            columns: ["mt5_account_id"]
+            isOneToOne: false
+            referencedRelation: "mt5_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
@@ -336,6 +446,10 @@ export type Database = {
       approve_transaction: {
         Args: { p_transaction_id: string }
         Returns: boolean
+      }
+      copy_trade_to_followers: {
+        Args: { p_master_user_id: string; p_trade_id: string }
+        Returns: undefined
       }
       has_role: {
         Args: {
