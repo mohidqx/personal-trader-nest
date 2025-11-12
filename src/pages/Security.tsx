@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { ArrowLeft, Shield, Key } from "lucide-react";
+import * as OTPAuth from "otplib";
 
 export default function Security() {
   const navigate = useNavigate();
@@ -47,8 +48,8 @@ export default function Security() {
   const handleEnable2FA = async () => {
     if (!user) return;
 
-    // Generate secret for 2FA
-    const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    // Generate cryptographically secure secret
+    const secret = OTPAuth.authenticator.generateSecret();
     
     // Generate QR code URL for authenticator app
     const otpauthUrl = `otpauth://totp/TradePro:${user.email}?secret=${secret}&issuer=TradePro`;
@@ -64,7 +65,7 @@ export default function Security() {
     if (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: "Failed to enable 2FA",
         variant: "destructive",
       });
     }
@@ -73,8 +74,30 @@ export default function Security() {
   const handleVerify2FA = async () => {
     if (!user || !verificationCode) return;
 
-    // In production, verify the TOTP code against the secret
-    // For now, just enable 2FA
+    if (!profile?.two_factor_secret) {
+      toast({
+        title: "Error",
+        description: "No 2FA secret found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Verify TOTP code
+    const isValid = OTPAuth.authenticator.verify({
+      token: verificationCode,
+      secret: profile.two_factor_secret,
+    });
+
+    if (!isValid) {
+      toast({
+        title: "Invalid Code",
+        description: "The verification code is incorrect. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({ two_factor_enabled: true })
@@ -83,7 +106,7 @@ export default function Security() {
     if (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: "Failed to enable 2FA",
         variant: "destructive",
       });
     } else {

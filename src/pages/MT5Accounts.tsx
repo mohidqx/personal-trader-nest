@@ -83,8 +83,17 @@ export default function MT5Accounts() {
         password: password,
       });
 
-      // Basic password encryption (in production, use proper encryption)
-      const encryptedPassword = btoa(validatedData.password);
+      // Encrypt password using edge function
+      const { data: encryptData, error: encryptError } = await supabase.functions.invoke(
+        'encrypt-password',
+        {
+          body: { password: validatedData.password, action: 'encrypt' }
+        }
+      );
+
+      if (encryptError || !encryptData?.encryptedPassword) {
+        throw new Error('Failed to encrypt password');
+      }
 
       const { error } = await supabase.from("mt5_accounts").insert({
         user_id: user.id,
@@ -92,7 +101,7 @@ export default function MT5Accounts() {
         server: validatedData.server,
         account_type: validatedData.account_type,
         account_name: validatedData.account_name,
-        password_encrypted: encryptedPassword,
+        password_encrypted: encryptData.encryptedPassword,
         balance: 0,
         equity: 0,
         is_active: true,
