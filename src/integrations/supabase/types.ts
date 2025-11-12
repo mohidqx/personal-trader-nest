@@ -155,10 +155,13 @@ export type Database = {
           api_secret: string | null
           balance: number | null
           created_at: string
+          ctrader_client_id: string | null
+          ctrader_client_secret: string | null
           equity: number | null
           id: string
           is_active: boolean | null
           password_encrypted: string
+          platform: string | null
           server: string
           updated_at: string
           user_id: string
@@ -171,10 +174,13 @@ export type Database = {
           api_secret?: string | null
           balance?: number | null
           created_at?: string
+          ctrader_client_id?: string | null
+          ctrader_client_secret?: string | null
           equity?: number | null
           id?: string
           is_active?: boolean | null
           password_encrypted: string
+          platform?: string | null
           server: string
           updated_at?: string
           user_id: string
@@ -187,10 +193,13 @@ export type Database = {
           api_secret?: string | null
           balance?: number | null
           created_at?: string
+          ctrader_client_id?: string | null
+          ctrader_client_secret?: string | null
           equity?: number | null
           id?: string
           is_active?: boolean | null
           password_encrypted?: string
+          platform?: string | null
           server?: string
           updated_at?: string
           user_id?: string
@@ -236,7 +245,9 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           full_name: string | null
+          google_id: string | null
           id: string
+          oauth_provider: string | null
           phone: string | null
           postal_code: string | null
           profile_picture_url: string | null
@@ -253,7 +264,9 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           full_name?: string | null
+          google_id?: string | null
           id?: string
+          oauth_provider?: string | null
           phone?: string | null
           postal_code?: string | null
           profile_picture_url?: string | null
@@ -270,7 +283,9 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           full_name?: string | null
+          google_id?: string | null
           id?: string
+          oauth_provider?: string | null
           phone?: string | null
           postal_code?: string | null
           profile_picture_url?: string | null

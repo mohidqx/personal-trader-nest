@@ -40,12 +40,12 @@ const sanitizeInput = (input: string): string => {
 };
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  const [attemptCount, setAttemptCount] = useState(0);
+  const [lastAttemptTime, setLastAttemptTime] = useState(0);
+  const RATE_LIMIT_MS = 3000;
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -59,96 +59,86 @@ const Auth = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({});
-
-    // Security: Rate limiting check (simple client-side)
-    if (attemptCount >= 5) {
-      toast({
-        variant: "destructive",
-        title: "Too Many Attempts",
-        description: "Please wait a few minutes before trying again.",
-      });
-      return;
-    }
-
-    // Security: Sanitize inputs
-    const sanitizedEmail = sanitizeInput(email);
-    const sanitizedPassword = password.slice(0, 128); // Just limit length, don't modify
-
-    // Security: Validate inputs
-    const validation = authSchema.safeParse({
-      email: sanitizedEmail,
-      password: sanitizedPassword,
-    });
-
-    if (!validation.success) {
-      const fieldErrors: { email?: string; password?: string } = {};
-      validation.error.errors.forEach((err) => {
-        if (err.path[0] === "email") fieldErrors.email = err.message;
-        if (err.path[0] === "password") fieldErrors.password = err.message;
-      });
-      setErrors(fieldErrors);
-      return;
-    }
-
     setLoading(true);
-    setAttemptCount((prev) => prev + 1);
+
+    // Rate limiting
+    const now = Date.now();
+    if (now - lastAttemptTime < RATE_LIMIT_MS) {
+      toast({
+        title: "Error",
+        description: "Too many attempts. Please wait before trying again.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+    setLastAttemptTime(now);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: sanitizedEmail,
-          password: sanitizedPassword,
-        });
+      // Validate and sanitize inputs
+      const validatedData = authSchema.parse({
+        email: sanitizeInput(email),
+        password: sanitizeInput(password),
+      });
 
-        if (error) {
-          // Security: Generic error message to prevent user enumeration
-          if (error.message.includes("Invalid") || error.message.includes("credentials")) {
-            throw new Error("Invalid email or password");
-          }
-          throw error;
-        }
-
-        toast({
-          title: "Welcome back!",
-          description: "Successfully signed in to your account.",
-        });
-        
-        // Security: Reset attempt count on success
-        setAttemptCount(0);
-        navigate("/dashboard");
-      } else {
-        const redirectUrl = `${window.location.origin}/dashboard`;
+      if (isSignUp) {
         const { error } = await supabase.auth.signUp({
-          email: sanitizedEmail,
-          password: sanitizedPassword,
+          email: validatedData.email,
+          password: validatedData.password,
           options: {
-            emailRedirectTo: redirectUrl,
+            emailRedirectTo: `${window.location.origin}/dashboard`,
           },
         });
 
-        if (error) {
-          // Security: Handle specific errors without exposing system details
-          if (error.message.includes("already registered")) {
-            throw new Error("An account with this email already exists");
-          }
-          throw error;
-        }
+        if (error) throw error;
 
         toast({
-          title: "Account created!",
-          description: "You can now sign in to access your dashboard.",
+          title: "Success",
+          description: "Account created successfully! You can now sign in.",
         });
-        setIsLogin(true);
+        setIsSignUp(false);
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: validatedData.email,
+          password: validatedData.password,
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Signed in successfully!",
+        });
+
+        navigate("/dashboard");
       }
     } catch (error: any) {
       toast({
+        title: "Error",
+        description: "Authentication failed. Please check your credentials.",
         variant: "destructive",
-        title: "Authentication Error",
-        description: error.message || "An error occurred. Please try again.",
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Google sign-in failed. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -179,17 +169,8 @@ const Auth = () => {
                 required
                 maxLength={255}
                 autoComplete="email"
-                className={`bg-secondary/50 border-border ${
-                  errors.email ? "border-destructive" : ""
-                }`}
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? "email-error" : undefined}
+                className="bg-secondary/50 border-border"
               />
-              {errors.email && (
-                <p id="email-error" className="text-sm text-destructive">
-                  {errors.email}
-                </p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -205,23 +186,9 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 maxLength={128}
-                autoComplete={isLogin ? "current-password" : "new-password"}
-                className={`bg-secondary/50 border-border ${
-                  errors.password ? "border-destructive" : ""
-                }`}
-                aria-invalid={!!errors.password}
-                aria-describedby={errors.password ? "password-error" : undefined}
+                autoComplete={isSignUp ? "new-password" : "current-password"}
+                className="bg-secondary/50 border-border"
               />
-              {errors.password && (
-                <p id="password-error" className="text-sm text-destructive">
-                  {errors.password}
-                </p>
-              )}
-              {!isLogin && !errors.password && (
-                <p className="text-xs text-muted-foreground">
-                  Must contain uppercase, lowercase, and number. Min 8 characters.
-                </p>
-              )}
             </div>
 
             <Button
@@ -229,16 +196,54 @@ const Auth = () => {
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-glow"
               disabled={loading}
             >
-              {loading ? "Processing..." : isLogin ? "Sign In" : "Create Account"}
+              {loading ? "Processing..." : isSignUp ? "Sign Up" : "Sign In"}
             </Button>
           </form>
 
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={handleGoogleSignIn}
+          >
+            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+            Sign in with Google
+          </Button>
+
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => setIsSignUp(!isSignUp)}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
-              {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
+              {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
             </button>
           </div>
         </Card>

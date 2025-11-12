@@ -17,7 +17,10 @@ const mt5Schema = z.object({
   server: z.string().min(1, "Server is required").max(100),
   account_type: z.string().min(1, "Account type is required"),
   account_name: z.string().max(100).optional(),
-  password: z.string().min(1, "Password is required"),
+  password: z.string().min(1, "Password is required").optional(),
+  platform: z.enum(['MT5', 'CTrader']),
+  ctrader_client_id: z.string().optional(),
+  ctrader_client_secret: z.string().optional(),
 });
 
 export default function MT5Accounts() {
@@ -32,6 +35,9 @@ export default function MT5Accounts() {
   const [accountType, setAccountType] = useState("");
   const [accountName, setAccountName] = useState("");
   const [password, setPassword] = useState("");
+  const [platform, setPlatform] = useState<'MT5' | 'CTrader'>('MT5');
+  const [ctraderClientId, setCtraderClientId] = useState("");
+  const [ctraderClientSecret, setCtraderClientSecret] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -80,19 +86,44 @@ export default function MT5Accounts() {
         server: server,
         account_type: accountType,
         account_name: accountName || undefined,
-        password: password,
+        password: password || undefined,
+        platform: platform,
+        ctrader_client_id: ctraderClientId || undefined,
+        ctrader_client_secret: ctraderClientSecret || undefined,
       });
 
-      // Encrypt password using edge function
-      const { data: encryptData, error: encryptError } = await supabase.functions.invoke(
-        'encrypt-password',
-        {
-          body: { password: validatedData.password, action: 'encrypt' }
-        }
-      );
+      let encryptedPassword = null;
+      let encryptedClientId = null;
+      let encryptedClientSecret = null;
 
-      if (encryptError || !encryptData?.encryptedPassword) {
-        throw new Error('Failed to encrypt password');
+      // Encrypt credentials based on platform
+      if (platform === 'MT5' && validatedData.password) {
+        const { data: encryptData, error: encryptError } = await supabase.functions.invoke(
+          'encrypt-password',
+          { body: { password: validatedData.password, action: 'encrypt' } }
+        );
+
+        if (encryptError || !encryptData?.encryptedPassword) {
+          throw new Error('Failed to encrypt password');
+        }
+        encryptedPassword = encryptData.encryptedPassword;
+      } else if (platform === 'CTrader') {
+        // Encrypt CTrader OAuth credentials
+        if (validatedData.ctrader_client_id) {
+          const { data: idData } = await supabase.functions.invoke(
+            'encrypt-password',
+            { body: { password: validatedData.ctrader_client_id, action: 'encrypt' } }
+          );
+          encryptedClientId = idData?.encryptedPassword;
+        }
+        
+        if (validatedData.ctrader_client_secret) {
+          const { data: secretData } = await supabase.functions.invoke(
+            'encrypt-password',
+            { body: { password: validatedData.ctrader_client_secret, action: 'encrypt' } }
+          );
+          encryptedClientSecret = secretData?.encryptedPassword;
+        }
       }
 
       const { error } = await supabase.from("mt5_accounts").insert({
@@ -101,7 +132,10 @@ export default function MT5Accounts() {
         server: validatedData.server,
         account_type: validatedData.account_type,
         account_name: validatedData.account_name,
-        password_encrypted: encryptData.encryptedPassword,
+        password_encrypted: encryptedPassword,
+        platform: platform,
+        ctrader_client_id: encryptedClientId,
+        ctrader_client_secret: encryptedClientSecret,
         balance: 0,
         equity: 0,
         is_active: true,
@@ -111,7 +145,7 @@ export default function MT5Accounts() {
 
       toast({
         title: "Success",
-        description: "MT5 account connected successfully",
+        description: `${platform} account connected successfully`,
       });
 
       setShowAddModal(false);
@@ -120,6 +154,9 @@ export default function MT5Accounts() {
       setAccountType("");
       setAccountName("");
       setPassword("");
+      setPlatform('MT5');
+      setCtraderClientId("");
+      setCtraderClientSecret("");
       loadAccounts(user.id);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -131,7 +168,7 @@ export default function MT5Accounts() {
       } else {
         toast({
           title: "Error",
-          description: "Failed to connect MT5 account",
+          description: "Failed to connect trading account",
           variant: "destructive",
         });
       }
@@ -264,12 +301,24 @@ export default function MT5Accounts() {
       </div>
 
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Connect MT5 Account</DialogTitle>
-            <DialogDescription>Add your MetaTrader 5 trading account</DialogDescription>
+            <DialogTitle>Connect Trading Account</DialogTitle>
+            <DialogDescription>Add your MT5 or CTrader trading account</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddAccount} className="space-y-4">
+            <div>
+              <Label htmlFor="platform">Platform *</Label>
+              <Select value={platform} onValueChange={(val: 'MT5' | 'CTrader') => setPlatform(val)} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select platform" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MT5">MetaTrader 5</SelectItem>
+                  <SelectItem value="CTrader">cTrader</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label htmlFor="accountNumber">Account Number *</Label>
               <Input
@@ -310,16 +359,46 @@ export default function MT5Accounts() {
                 placeholder="e.g., Main Trading Account"
               />
             </div>
-            <div>
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+            
+            {platform === 'MT5' && (
+              <div>
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            
+            {platform === 'CTrader' && (
+              <>
+                <div>
+                  <Label htmlFor="ctraderClientId">OAuth Client ID *</Label>
+                  <Input
+                    id="ctraderClientId"
+                    value={ctraderClientId}
+                    onChange={(e) => setCtraderClientId(e.target.value)}
+                    placeholder="Your cTrader OAuth Client ID"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="ctraderClientSecret">OAuth Client Secret *</Label>
+                  <Input
+                    id="ctraderClientSecret"
+                    type="password"
+                    value={ctraderClientSecret}
+                    onChange={(e) => setCtraderClientSecret(e.target.value)}
+                    placeholder="Your cTrader OAuth Client Secret"
+                    required
+                  />
+                </div>
+              </>
+            )}
+            
             <Button type="submit" className="w-full">
               Connect Account
             </Button>
