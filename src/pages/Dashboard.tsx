@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [username, setUsername] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -30,6 +31,7 @@ const Dashboard = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user);
+        loadUsername(session.user.id);
       } else {
         navigate("/auth");
       }
@@ -39,6 +41,7 @@ const Dashboard = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
+        loadUsername(session.user.id);
       } else {
         navigate("/auth");
       }
@@ -46,6 +49,18 @@ const Dashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const loadUsername = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("user_id", userId)
+      .single();
+    
+    if (data) {
+      setUsername((data as any).username || "");
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -109,8 +124,10 @@ const Dashboard = () => {
       <main className="container mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-foreground mb-2">Welcome Back, Trader</h2>
-          <p className="text-muted-foreground">{user?.email}</p>
+          <h2 className="text-3xl font-bold text-foreground mb-2">
+            Welcome Back, {username || "Trader"}
+          </h2>
+          <p className="text-muted-foreground">@{username} • {user?.email}</p>
         </div>
 
         {/* Stats Grid */}

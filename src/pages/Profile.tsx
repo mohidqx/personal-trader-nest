@@ -62,7 +62,7 @@ export default function Profile() {
     } else {
       setProfile(data);
       setFullName(data?.full_name || "");
-      setUsername(data?.username || "");
+      setUsername((data as any)?.username || "");
       setPhone(data?.phone || "");
       setCountry(data?.country || "");
     }
