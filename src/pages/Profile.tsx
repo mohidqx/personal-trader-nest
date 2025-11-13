@@ -12,6 +12,7 @@ import { ArrowLeft, UserCircle } from "lucide-react";
 
 const profileSchema = z.object({
   full_name: z.string().min(1, "Name is required").max(100, "Name too long"),
+  username: z.string().min(3, "Username must be at least 3 characters").max(30, "Username too long").regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
   phone: z.string().max(20, "Phone number too long").optional(),
   country: z.string().max(100, "Country name too long").optional(),
 });
@@ -23,6 +24,7 @@ export default function Profile() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
 
@@ -60,6 +62,7 @@ export default function Profile() {
     } else {
       setProfile(data);
       setFullName(data?.full_name || "");
+      setUsername(data?.username || "");
       setPhone(data?.phone || "");
       setCountry(data?.country || "");
     }
@@ -73,6 +76,7 @@ export default function Profile() {
     try {
       const validatedData = profileSchema.parse({
         full_name: fullName,
+        username: username,
         phone: phone || undefined,
         country: country || undefined,
       });
@@ -141,6 +145,20 @@ export default function Profile() {
                   className="bg-muted"
                 />
                 <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="username">Username *</Label>
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  minLength={3}
+                  maxLength={30}
+                  pattern="[a-zA-Z0-9_]+"
+                />
+                <p className="text-xs text-muted-foreground">Alphanumeric and underscores only</p>
               </div>
 
               <div className="space-y-2">
