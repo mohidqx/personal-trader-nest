@@ -24,6 +24,10 @@ const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [username, setUsername] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState<number>(0);
+  const [todayPnL, setTodayPnL] = useState<number>(0);
+  const [openPositions, setOpenPositions] = useState<number>(0);
+  const [winRate, setWinRate] = useState<number>(0);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -31,7 +35,7 @@ const Dashboard = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user);
-        loadUsername(session.user.id);
+        loadUserData(session.user.id);
       } else {
         navigate("/auth");
       }
@@ -41,7 +45,7 @@ const Dashboard = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
-        loadUsername(session.user.id);
+        loadUserData(session.user.id);
       } else {
         navigate("/auth");
       }
@@ -50,15 +54,54 @@ const Dashboard = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const loadUsername = async (userId: string) => {
-    const { data } = await supabase
+  const loadUserData = async (userId: string) => {
+    // Load username
+    const { data: profileData } = await supabase
       .from("profiles")
       .select("username")
       .eq("user_id", userId)
       .single();
     
-    if (data) {
-      setUsername((data as any).username || "");
+    if (profileData) {
+      setUsername((profileData as any).username || "");
+    }
+
+    // Load wallet balance
+    const { data: walletData } = await supabase
+      .from("wallets")
+      .select("balance")
+      .eq("user_id", userId)
+      .single();
+    
+    if (walletData) {
+      setBalance(Number(walletData.balance) || 0);
+    }
+
+    // Load trades data
+    const { data: tradesData } = await supabase
+      .from("trades")
+      .select("status, profit, opened_at, closed_at")
+      .eq("user_id", userId);
+
+    if (tradesData) {
+      // Count open positions
+      const openCount = tradesData.filter(t => t.status === 'open').length;
+      setOpenPositions(openCount);
+
+      // Calculate today's P&L
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayProfit = tradesData
+        .filter(t => t.closed_at && new Date(t.closed_at) >= today)
+        .reduce((sum, t) => sum + (Number(t.profit) || 0), 0);
+      setTodayPnL(todayProfit);
+
+      // Calculate win rate
+      const closedTrades = tradesData.filter(t => t.status === 'closed');
+      if (closedTrades.length > 0) {
+        const winningTrades = closedTrades.filter(t => Number(t.profit) > 0).length;
+        setWinRate((winningTrades / closedTrades.length) * 100);
+      }
     }
   };
 
@@ -143,7 +186,7 @@ const Dashboard = () => {
               </span>
             </div>
             <p className="text-sm text-muted-foreground mb-1">Account Balance</p>
-            <p className="text-2xl font-bold font-mono text-foreground">$125,432.50</p>
+            <p className="text-2xl font-bold font-mono text-foreground">${balance.toFixed(2)}</p>
           </Card>
 
           <Card className="p-6 bg-gradient-card backdrop-blur-xl border-border/50 hover:shadow-glow transition-all">
@@ -157,7 +200,9 @@ const Dashboard = () => {
               </span>
             </div>
             <p className="text-sm text-muted-foreground mb-1">Today's P&L</p>
-            <p className="text-2xl font-bold font-mono text-success">+$2,847.20</p>
+            <p className={`text-2xl font-bold font-mono ${todayPnL >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {todayPnL >= 0 ? '+' : ''}${todayPnL.toFixed(2)}
+            </p>
           </Card>
 
           <Card className="p-6 bg-gradient-card backdrop-blur-xl border-border/50 hover:shadow-glow transition-all">
@@ -171,7 +216,7 @@ const Dashboard = () => {
               </span>
             </div>
             <p className="text-sm text-muted-foreground mb-1">Open Positions</p>
-            <p className="text-2xl font-bold font-mono text-foreground">7</p>
+            <p className="text-2xl font-bold font-mono text-foreground">{openPositions}</p>
           </Card>
 
           <Card className="p-6 bg-gradient-card backdrop-blur-xl border-border/50 hover:shadow-glow transition-all">
@@ -185,7 +230,7 @@ const Dashboard = () => {
               </span>
             </div>
             <p className="text-sm text-muted-foreground mb-1">Win Rate</p>
-            <p className="text-2xl font-bold font-mono text-foreground">68.4%</p>
+            <p className="text-2xl font-bold font-mono text-foreground">{winRate.toFixed(1)}%</p>
           </Card>
         </div>
 
