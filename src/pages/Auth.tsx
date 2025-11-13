@@ -29,6 +29,16 @@ const authSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       "Password must contain uppercase, lowercase, and number"
     ),
+  username: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must be less than 30 characters")
+    .regex(
+      /^[a-zA-Z0-9_]+$/,
+      "Username can only contain letters, numbers, and underscores"
+    )
+    .optional(),
 });
 
 // Security: Sanitize input to prevent XSS
@@ -43,6 +53,7 @@ const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastAttemptTime, setLastAttemptTime] = useState(0);
   const RATE_LIMIT_MS = 3000;
@@ -79,14 +90,28 @@ const Auth = () => {
       const validatedData = authSchema.parse({
         email: sanitizeInput(email),
         password: sanitizeInput(password),
+        username: isSignUp ? sanitizeInput(username) : undefined,
       });
 
       if (isSignUp) {
+        if (!validatedData.username) {
+          toast({
+            title: "Error",
+            description: "Username is required for sign up",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase.auth.signUp({
           email: validatedData.email,
           password: validatedData.password,
           options: {
             emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: {
+              username: validatedData.username,
+            },
           },
         });
 
@@ -155,6 +180,27 @@ const Auth = () => {
 
         <Card className="p-8 bg-card/50 backdrop-blur-xl border-border/50 shadow-elevation">
           <form onSubmit={handleAuth} className="space-y-6">
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-foreground flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-primary" />
+                  Username
+                </Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="traderpro"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  minLength={3}
+                  maxLength={30}
+                  autoComplete="username"
+                  className="bg-secondary/50 border-border"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-foreground flex items-center gap-2">
                 <Mail className="h-4 w-4 text-primary" />
