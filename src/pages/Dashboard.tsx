@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [username, setUsername] = useState<string>("");
+  const [userRole, setUserRole] = useState<string>("user");
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<number>(0);
   const [todayPnL, setTodayPnL] = useState<number>(0);
@@ -64,6 +65,17 @@ const Dashboard = () => {
     
     if (profileData) {
       setUsername((profileData as any).username || "");
+    }
+
+    // Load user role
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .single();
+    
+    if (roleData) {
+      setUserRole(roleData.role);
     }
 
     // Load wallet balance
@@ -167,9 +179,18 @@ const Dashboard = () => {
       <main className="container mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-foreground mb-2">
-            Welcome Back, {username || "Trader"}
-          </h2>
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-3xl font-bold text-foreground">
+              Welcome Back, {username || "Trader"}
+            </h2>
+            <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+              userRole === 'admin' 
+                ? 'bg-primary/20 text-primary border border-primary/30' 
+                : 'bg-muted text-muted-foreground border border-border'
+            }`}>
+              {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+            </span>
+          </div>
           <p className="text-muted-foreground">@{username} • {user?.email}</p>
         </div>
 
