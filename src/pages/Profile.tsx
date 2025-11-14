@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { z } from "zod";
-import { ArrowLeft, UserCircle } from "lucide-react";
+import { ArrowLeft, UserCircle, Edit, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const profileSchema = z.object({
   full_name: z.string().min(1, "Name is required").max(100, "Name too long"),
@@ -28,6 +30,9 @@ export default function Profile() {
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
   const [userRole, setUserRole] = useState<string>("user");
+  const [isEditing, setIsEditing] = useState(false);
+  const [showUserIdsDialog, setShowUserIdsDialog] = useState(false);
+  const [allUserIds, setAllUserIds] = useState<Array<{ id: string; email: string; full_name: string; username: string }>>([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -106,6 +111,7 @@ export default function Profile() {
         description: "Profile updated successfully",
       });
 
+      setIsEditing(false);
       loadProfile(user.id);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -121,6 +127,47 @@ export default function Profile() {
           variant: "destructive",
         });
       }
+    }
+  };
+
+  const handleViewAllUserIds = async () => {
+    if (userRole !== "admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only admins can view all user IDs",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers();
+      
+      if (usersError) throw usersError;
+
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name");
+
+      if (profilesError) throw profilesError;
+
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, { full_name: p.full_name }]) || []);
+
+      const usersList = usersData.users.map(u => ({
+        id: u.id,
+        email: u.email || "N/A",
+        full_name: profilesMap.get(u.id)?.full_name || "N/A",
+        username: "N/A",
+      }));
+
+      setAllUserIds(usersList);
+      setShowUserIdsDialog(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch user IDs",
+        variant: "destructive",
+      });
     }
   };
 
@@ -221,6 +268,43 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showUserIdsDialog} onOpenChange={setShowUserIdsDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>All User IDs</DialogTitle>
+            <DialogDescription>
+              List of all registered users in the system
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[400px] w-full">
+            <div className="space-y-4">
+              {allUserIds.map((user) => (
+                <div key={user.id} className="border rounded-lg p-4 space-y-2">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="font-semibold">User ID:</span>
+                      <p className="text-muted-foreground font-mono text-xs break-all">{user.id}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Email:</span>
+                      <p className="text-muted-foreground">{user.email}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Full Name:</span>
+                      <p className="text-muted-foreground">{user.full_name}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Username:</span>
+                      <p className="text-muted-foreground">{user.username}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
