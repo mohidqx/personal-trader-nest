@@ -27,6 +27,7 @@ export default function Profile() {
   const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
+  const [userRole, setUserRole] = useState<string>("user");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -66,6 +67,18 @@ export default function Profile() {
       setPhone(data?.phone || "");
       setCountry(data?.country || "");
     }
+
+    // Load user role
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .single();
+    
+    if (roleData) {
+      setUserRole(roleData.role);
+    }
+
     setLoading(false);
   };
 
@@ -193,6 +206,18 @@ export default function Profile() {
                 Save Changes
               </Button>
             </form>
+
+            {userRole === "admin" && (
+              <>
+                <div className="border-t my-6" />
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-foreground">Admin Configuration</h3>
+                  <Button variant="outline" className="w-full">
+                    View All User IDs
+                  </Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
