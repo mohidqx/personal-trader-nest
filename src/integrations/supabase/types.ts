@@ -255,6 +255,7 @@ export type Database = {
           two_factor_secret: string | null
           updated_at: string
           user_id: string
+          username: string
         }
         Insert: {
           address?: string | null
@@ -274,6 +275,7 @@ export type Database = {
           two_factor_secret?: string | null
           updated_at?: string
           user_id: string
+          username: string
         }
         Update: {
           address?: string | null
@@ -293,6 +295,7 @@ export type Database = {
           two_factor_secret?: string | null
           updated_at?: string
           user_id?: string
+          username?: string
         }
         Relationships: []
       }
