@@ -338,6 +338,10 @@ export default function Trades() {
     });
   }, []);
 
+  // Live P&L for open trades
+  const openTrades = useMemo(() => trades.filter(t => t.status === "open"), [trades]);
+  const livePnL = useLivePnL(openTrades);
+
   const loadTrades = async (userId: string, silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
