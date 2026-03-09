@@ -27,6 +27,7 @@ interface AppSidebarProps {
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Trades", url: "/trades", icon: Activity },
   { title: "Wallet", url: "/wallet", icon: Wallet },
   { title: "MT5 Accounts", url: "/mt5-accounts", icon: Link2 },
   { title: "Copy Trading", url: "/copy-trading", icon: Users },
