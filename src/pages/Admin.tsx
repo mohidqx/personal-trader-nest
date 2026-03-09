@@ -132,9 +132,22 @@ export default function Admin() {
   };
 
   const handleReject = async (id: string) => {
-    const { error } = await supabase.from("transactions").update({ status: "rejected" }).eq("id", id);
+    const tx = transactions.find(t => t.id === id);
+    setRejectReason("");
+    setRejectModal({ open: true, txId: id, txAmount: tx?.amount || 0, txType: tx?.type || "" });
+  };
+
+  const handleConfirmReject = async () => {
+    const { error } = await supabase.rpc("reject_transaction" as any, {
+      p_transaction_id: rejectModal.txId,
+      p_reason: rejectReason || "No reason provided",
+    });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: "Rejected" }); loadTransactions(); }
+    else {
+      toast({ title: "Rejected", description: "User has been notified." });
+      setRejectModal({ open: false, txId: "", txAmount: 0, txType: "" });
+      loadTransactions();
+    }
   };
 
   const handleRefresh = async () => {
