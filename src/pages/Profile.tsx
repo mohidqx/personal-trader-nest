@@ -1,310 +1,221 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { User } from "@supabase/supabase-js";
 import { z } from "zod";
-import { ArrowLeft, UserCircle, Edit, X } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { UserCircle, Camera, Edit2, Save, X, BadgeCheck, Phone, MapPin, Calendar, Mail } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const profileSchema = z.object({
-  full_name: z.string().min(1, "Name is required").max(100, "Name too long"),
-  username: z.string().min(3, "Username must be at least 3 characters").max(30, "Username too long").regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
-  phone: z.string().max(20, "Phone number too long").optional(),
-  country: z.string().max(100, "Country name too long").optional(),
+  full_name: z.string().min(1, "Name is required").max(100),
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, "Alphanumeric and underscores only"),
+  phone: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
 });
 
 export default function Profile() {
-  const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
-  const [phone, setPhone] = useState("");
-  const [country, setCountry] = useState("");
-  const [userRole, setUserRole] = useState<string>("user");
   const [isEditing, setIsEditing] = useState(false);
-  const [showUserIdsDialog, setShowUserIdsDialog] = useState(false);
-  const [allUserIds, setAllUserIds] = useState<Array<{ id: string; email: string; full_name: string; username: string }>>([]);
+  const [saving, setSaving] = useState(false);
+  const [userRole, setUserRole] = useState("user");
+  const [form, setForm] = useState({ full_name: "", username: "", phone: "", country: "" });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        loadProfile(session.user.id);
-      } else {
-        navigate("/auth");
-      }
+      if (session?.user) { setUser(session.user); loadProfile(session.user.id); }
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        loadProfile(session.user.id);
-      } else {
-        navigate("/auth");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   const loadProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    if (error) {
-      console.error("Error loading profile:", error);
-    } else {
-      setProfile(data);
-      setFullName(data?.full_name || "");
-      setUsername((data as any)?.username || "");
-      setPhone(data?.phone || "");
-      setCountry(data?.country || "");
+    const [profileRes, roleRes] = await Promise.all([
+      supabase.from("profiles").select("*").eq("user_id", userId).single(),
+      supabase.from("user_roles").select("role").eq("user_id", userId).single(),
+    ]);
+    if (profileRes.data) {
+      setProfile(profileRes.data);
+      setForm({
+        full_name: profileRes.data.full_name || "",
+        username: profileRes.data.username || "",
+        phone: profileRes.data.phone || "",
+        country: profileRes.data.country || "",
+      });
     }
-
-    // Load user role
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .single();
-    
-    if (roleData) {
-      setUserRole(roleData.role);
-    }
-
+    if (roleRes.data) setUserRole(roleRes.data.role);
     setLoading(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
+    setSaving(true);
     try {
-      const validatedData = profileSchema.parse({
-        full_name: fullName,
-        username: username,
-        phone: phone || undefined,
-        country: country || undefined,
-      });
-
-      const { error } = await supabase
-        .from("profiles")
-        .update(validatedData)
-        .eq("user_id", user.id);
-
+      const validated = profileSchema.parse(form);
+      const { error } = await supabase.from("profiles").update(validated).eq("user_id", user.id);
       if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      });
-
+      toast({ title: "Profile Updated", description: "Your changes have been saved." });
       setIsEditing(false);
-      loadProfile(user.id);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to update profile",
-          variant: "destructive",
-        });
-      }
-    }
+      await loadProfile(user.id);
+    } catch (err) {
+      if (err instanceof z.ZodError) toast({ title: "Validation Error", description: err.errors[0].message, variant: "destructive" });
+      else toast({ title: "Error", description: "Failed to update profile", variant: "destructive" });
+    } finally { setSaving(false); }
   };
 
-  const handleViewAllUserIds = async () => {
-    if (userRole !== "admin") {
-      toast({
-        title: "Access Denied",
-        description: "Only admins can view all user IDs",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers();
-      
-      if (usersError) throw usersError;
-
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("user_id, full_name");
-
-      if (profilesError) throw profilesError;
-
-      const profilesMap = new Map(profilesData?.map(p => [p.user_id, { full_name: p.full_name }]) || []);
-
-      const usersList = usersData.users.map(u => ({
-        id: u.id,
-        email: u.email || "N/A",
-        full_name: profilesMap.get(u.id)?.full_name || "N/A",
-        username: "N/A",
-      }));
-
-      setAllUserIds(usersList);
-      setShowUserIdsDialog(true);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch user IDs",
-        variant: "destructive",
-      });
-    }
-  };
-
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
+  if (loading) return (
+    <AppLayout title="Profile">
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    </AppLayout>
+  );
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <Button variant="ghost" onClick={() => navigate("/dashboard")} className="mb-6">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-4">
-              <UserCircle className="h-12 w-12 text-primary" />
-              <div>
-                <CardTitle>Profile Settings</CardTitle>
-                <CardDescription>Manage your personal information</CardDescription>
-              </div>
+    <AppLayout title="Profile" subtitle="Manage your personal information">
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Avatar Card */}
+        <div className="card-glass rounded-xl p-6 flex items-center gap-6">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/30 to-primary/10 border-2 border-primary/30 flex items-center justify-center">
+              {profile?.profile_picture_url ? (
+                <img src={profile.profile_picture_url} alt="" className="w-full h-full rounded-2xl object-cover" />
+              ) : (
+                <span className="text-3xl font-bold text-primary">
+                  {(profile?.full_name || profile?.username || "U").charAt(0).toUpperCase()}
+                </span>
+              )}
             </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSave} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={user?.email || ""}
-                  disabled
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="username">Username *</Label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  minLength={3}
-                  maxLength={30}
-                  pattern="[a-zA-Z0-9_]+"
-                />
-                <p className="text-xs text-muted-foreground">Alphanumeric and underscores only</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name *</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="country">Country</Label>
-                <Input
-                  id="country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                />
-              </div>
-
-              <Button type="submit" className="w-full">
-                Save Changes
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="text-xl font-bold">{profile?.full_name || "Unknown User"}</h2>
+              {userRole === "admin" && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-warning/15 text-warning border border-warning/30 font-medium">
+                  Admin
+                </span>
+              )}
+              {userRole === "user" && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 font-medium">
+                  Trader
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">@{profile?.username}</p>
+            <p className="text-xs text-muted-foreground mt-1">{user?.email}</p>
+          </div>
+          <div className="flex gap-2">
+            {!isEditing ? (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
+                <Edit2 className="w-3.5 h-3.5" />
+                Edit
               </Button>
-            </form>
-
-            {userRole === "admin" && (
-              <>
-                <div className="border-t my-6" />
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-foreground">Admin Configuration</h3>
-                  <Button variant="outline" className="w-full">
-                    View All User IDs
-                  </Button>
-                </div>
-              </>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => { setIsEditing(false); loadProfile(user?.id); }}>
+                <X className="w-3.5 h-3.5" />
+              </Button>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
 
-      <Dialog open={showUserIdsDialog} onOpenChange={setShowUserIdsDialog}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>All User IDs</DialogTitle>
-            <DialogDescription>
-              List of all registered users in the system
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="h-[400px] w-full">
-            <div className="space-y-4">
-              {allUserIds.map((user) => (
-                <div key={user.id} className="border rounded-lg p-4 space-y-2">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="font-semibold">User ID:</span>
-                      <p className="text-muted-foreground font-mono text-xs break-all">{user.id}</p>
-                    </div>
-                    <div>
-                      <span className="font-semibold">Email:</span>
-                      <p className="text-muted-foreground">{user.email}</p>
-                    </div>
-                    <div>
-                      <span className="font-semibold">Full Name:</span>
-                      <p className="text-muted-foreground">{user.full_name}</p>
-                    </div>
-                    <div>
-                      <span className="font-semibold">Username:</span>
-                      <p className="text-muted-foreground">{user.username}</p>
-                    </div>
+        {/* Profile Form */}
+        <form onSubmit={handleSave}>
+          <div className="card-glass rounded-xl overflow-hidden">
+            <div className="p-5 border-b border-border/40">
+              <h3 className="font-semibold text-sm">Personal Information</h3>
+            </div>
+            <div className="p-5 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Full Name</Label>
+                  {isEditing ? (
+                    <Input className="mt-1.5" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+                  ) : (
+                    <p className="mt-1.5 text-sm font-medium">{profile?.full_name || "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Username</Label>
+                  {isEditing ? (
+                    <Input className="mt-1.5" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+                  ) : (
+                    <p className="mt-1.5 text-sm font-medium font-mono">@{profile?.username || "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Email</Label>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                    <p className="text-sm">{user?.email || "—"}</p>
+                    <BadgeCheck className="w-3.5 h-3.5 text-success" />
                   </div>
                 </div>
-              ))}
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Phone</Label>
+                  {isEditing ? (
+                    <Input className="mt-1.5" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+1 234 567 8900" />
+                  ) : (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                      <p className="text-sm">{profile?.phone || "Not set"}</p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Country</Label>
+                  {isEditing ? (
+                    <Input className="mt-1.5" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} placeholder="e.g. United States" />
+                  ) : (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                      <p className="text-sm">{profile?.country || "Not set"}</p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Member Since</Label>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                    <p className="text-sm">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "—"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {isEditing && (
+                <Button type="submit" className="w-full gap-2" disabled={saving}>
+                  {saving ? <><div className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />Saving...</> : <><Save className="w-3.5 h-3.5" />Save Changes</>}
+                </Button>
+              )}
             </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </div>
+        </form>
+
+        {/* Account Info */}
+        <div className="card-glass rounded-xl overflow-hidden">
+          <div className="p-5 border-b border-border/40">
+            <h3 className="font-semibold text-sm">Account Details</h3>
+          </div>
+          <div className="p-5 space-y-3">
+            {[
+              { label: "User ID", value: user?.id, mono: true },
+              { label: "Auth Provider", value: profile?.oauth_provider || "Email" },
+              { label: "Role", value: userRole.charAt(0).toUpperCase() + userRole.slice(1) },
+              { label: "2FA Status", value: profile?.two_factor_enabled ? "Enabled ✓" : "Disabled", color: profile?.two_factor_enabled ? "text-success" : "text-muted-foreground" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                <span className="text-xs text-muted-foreground">{item.label}</span>
+                <span className={cn("text-xs font-medium", item.mono && "font-mono", item.color || "text-foreground")}>
+                  {item.mono ? item.value?.slice(0, 12) + "..." : item.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </AppLayout>
   );
 }

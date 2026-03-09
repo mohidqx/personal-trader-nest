@@ -2,56 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Design System — All colors MUST be HSL */
 
 @layer base {
   :root {
-    --background: 220 25% 10%;
+    --background: 222 28% 8%;
     --foreground: 210 40% 98%;
 
-    --card: 220 20% 14%;
+    --card: 222 24% 12%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 220 25% 12%;
+    --popover: 222 28% 10%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 189 100% 50%;
-    --primary-foreground: 220 25% 10%;
+    --primary: 189 100% 48%;
+    --primary-foreground: 222 28% 8%;
 
-    --secondary: 220 20% 20%;
+    --secondary: 222 20% 18%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 15% 18%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 222 18% 16%;
+    --muted-foreground: 215 20% 58%;
 
-    --accent: 189 80% 45%;
-    --accent-foreground: 220 25% 10%;
+    --accent: 189 80% 42%;
+    --accent-foreground: 222 28% 8%;
 
-    --success: 142 76% 36%;
+    --success: 142 71% 45%;
     --success-foreground: 210 40% 98%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 15% 22%;
-    --input: 220 15% 22%;
-    --ring: 189 100% 50%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 28% 8%;
+
+    --border: 222 18% 18%;
+    --input: 222 18% 18%;
+    --ring: 189 100% 48%;
 
     --radius: 0.75rem;
+    --sidebar-width: 260px;
+    --sidebar-width-collapsed: 72px;
 
-    --chart-1: 189 100% 50%;
-    --chart-2: 142 76% 36%;
+    --chart-1: 189 100% 48%;
+    --chart-2: 142 71% 45%;
     --chart-3: 0 72% 51%;
-    --chart-4: 45 93% 47%;
+    --chart-4: 38 92% 50%;
     --chart-5: 271 91% 65%;
+    --chart-6: 320 80% 60%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(189 100% 50% / 0.1), hsl(189 100% 50% / 0.05));
-    --gradient-card: linear-gradient(135deg, hsl(220 20% 16% / 0.5), hsl(220 20% 14% / 0.5));
-    --glow-cyan: 0 0 40px hsl(189 100% 50% / 0.3);
-    --glow-green: 0 0 30px hsl(142 76% 36% / 0.3);
-    --shadow-elevation: 0 10px 40px hsl(220 25% 5% / 0.4);
+    --gradient-primary: linear-gradient(135deg, hsl(189 100% 48% / 0.15), hsl(189 100% 48% / 0.05));
+    --gradient-card: linear-gradient(145deg, hsl(222 24% 14% / 0.8), hsl(222 24% 11% / 0.9));
+    --gradient-hero: linear-gradient(135deg, hsl(189 100% 48% / 0.08) 0%, transparent 50%, hsl(271 91% 65% / 0.05) 100%);
+    --glow-cyan: 0 0 40px hsl(189 100% 48% / 0.35), 0 0 80px hsl(189 100% 48% / 0.15);
+    --glow-cyan-sm: 0 0 20px hsl(189 100% 48% / 0.3);
+    --glow-green: 0 0 30px hsl(142 71% 45% / 0.3);
+    --shadow-elevation: 0 4px 6px -1px hsl(222 28% 4% / 0.3), 0 10px 40px hsl(222 28% 4% / 0.4);
+    --shadow-card: 0 2px 8px hsl(222 28% 4% / 0.4), inset 0 1px 0 hsl(210 40% 98% / 0.04);
   }
 }
 
@@ -62,5 +71,82 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  .glow-primary {
+    box-shadow: var(--glow-cyan);
+  }
+  .glow-primary-sm {
+    box-shadow: var(--glow-cyan-sm);
+  }
+  .glow-green {
+    box-shadow: var(--glow-green);
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(189 80% 65%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .card-glass {
+    background: var(--gradient-card);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--shadow-card);
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out forwards;
+  }
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+  .ticker-scroll {
+    animation: tickerScroll 40s linear infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px hsl(189 100% 48% / 0.2); }
+  50% { box-shadow: 0 0 40px hsl(189 100% 48% / 0.5); }
+}
+
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

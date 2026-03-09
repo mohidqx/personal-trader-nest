@@ -1,82 +1,36 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { User } from "@supabase/supabase-js";
-import { 
-  ArrowLeft, 
-  CheckCircle, 
-  XCircle, 
-  Users, 
-  DollarSign,
-  TrendingUp,
-  Activity,
-  UserPlus,
-  Wallet as WalletIcon,
-  BarChart3
+import {
+  CheckCircle, XCircle, Users, DollarSign, TrendingUp,
+  Activity, UserPlus, Wallet as WalletIcon, BarChart3, RefreshCw,
+  AlertTriangle, ArrowUpRight
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-
-interface UserStats {
-  totalUsers: number;
-  activeUsers: number;
-  newUsersToday: number;
-  newUsersThisWeek: number;
-  newUsersThisMonth: number;
-}
-
-interface FinancialStats {
-  totalDeposits: number;
-  totalWithdrawals: number;
-  pendingTransactions: number;
-  totalBalance: number;
-}
-
-interface TradingStats {
-  totalTrades: number;
-  activeTrades: number;
-  totalProfit: number;
-  avgWinRate: number;
-}
-
-interface RecentUser {
-  user_id: string;
-  full_name: string;
-  created_at: string;
-}
+import { cn } from "@/lib/utils";
+import {
+  LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, BarChart, Bar
+} from "recharts";
 
 export default function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [copyRelationships, setCopyRelationships] = useState<any[]>([]);
-  const [userStats, setUserStats] = useState<UserStats>({
-    totalUsers: 0,
-    activeUsers: 0,
-    newUsersToday: 0,
-    newUsersThisWeek: 0,
-    newUsersThisMonth: 0,
-  });
-  const [financialStats, setFinancialStats] = useState<FinancialStats>({
-    totalDeposits: 0,
-    totalWithdrawals: 0,
-    pendingTransactions: 0,
-    totalBalance: 0,
-  });
-  const [tradingStats, setTradingStats] = useState<TradingStats>({
-    totalTrades: 0,
-    activeTrades: 0,
-    totalProfit: 0,
-    avgWinRate: 0,
-  });
-  const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [userStats, setUserStats] = useState({ total: 0, today: 0, week: 0, month: 0 });
+  const [financialStats, setFinancialStats] = useState({ deposits: 0, withdrawals: 0, pending: 0, totalBalance: 0 });
+  const [tradingStats, setTradingStats] = useState({ total: 0, active: 0, profit: 0, winRate: 0 });
+  const [recentUsers, setRecentUsers] = useState<any[]>([]);
+  const [growthData, setGrowthData] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     checkAdmin();
@@ -84,534 +38,347 @@ export default function Admin() {
 
   const checkAdmin = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      navigate("/auth");
-      return;
-    }
-
-    setUser(session.user);
-
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", session.user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-
+    if (!session?.user) { navigate("/auth"); return; }
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", session.user.id).eq("role", "admin").maybeSingle();
     if (!roles) {
-      toast({
-        title: "Access Denied",
-        description: "Admin access required",
-        variant: "destructive",
-      });
+      toast({ title: "Access Denied", description: "Admin access required", variant: "destructive" });
       navigate("/dashboard");
       return;
     }
-
     setIsAdmin(true);
-    loadData();
-  };
-
-  const loadData = async () => {
-    await Promise.all([
-      loadTransactions(),
-      loadUsers(),
-      loadCopyRelationships(),
-      loadUserStats(),
-      loadFinancialStats(),
-      loadTradingStats(),
-      loadRecentUsers(),
-    ]);
+    await loadAll();
     setLoading(false);
   };
 
-  const loadTransactions = async () => {
-    const { data: txns } = await supabase
-      .from("transactions")
-      .select("*, profiles(full_name)")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false});
+  const loadAll = async () => {
+    await Promise.all([loadTransactions(), loadUsers(), loadStats()]);
+  };
 
-    setTransactions(txns || []);
+  const loadTransactions = async () => {
+    const { data } = await supabase.from("transactions").select("*, profiles(full_name, username)").eq("status", "pending").order("created_at", { ascending: false });
+    setTransactions(data || []);
   };
 
   const loadUsers = async () => {
-    const { data: usersData } = await supabase
-      .from("profiles")
-      .select("*, wallets(balance)")
-      .order("created_at", { ascending: false });
+    const { data } = await supabase.from("profiles").select("*, wallets(balance)").order("created_at", { ascending: false }).limit(50);
+    setUsers(data || []);
 
-    setUsers(usersData || []);
-  };
-
-  const loadCopyRelationships = async () => {
-    const { data: relationships } = await supabase
-      .from("copy_relationships")
-      .select("*, profiles(full_name)")
-      .order("created_at", { ascending: false });
-
-    setCopyRelationships(relationships || []);
-  };
-
-  const loadUserStats = async () => {
-    const { data: allUsers } = await supabase
-      .from("profiles")
-      .select("user_id, created_at");
-
-    if (!allUsers) return;
-
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const monthAgo = new Date(today);
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
-
-    setUserStats({
-      totalUsers: allUsers.length,
-      activeUsers: allUsers.length,
-      newUsersToday: allUsers.filter(u => new Date(u.created_at) >= today).length,
-      newUsersThisWeek: allUsers.filter(u => new Date(u.created_at) >= weekAgo).length,
-      newUsersThisMonth: allUsers.filter(u => new Date(u.created_at) >= monthAgo).length,
-    });
-  };
-
-  const loadFinancialStats = async () => {
-    const { data: allTransactions } = await supabase
-      .from("transactions")
-      .select("type, amount, status");
-
-    const { data: wallets } = await supabase
-      .from("wallets")
-      .select("balance");
-
-    if (!allTransactions) return;
-
-    const completedTxns = allTransactions.filter(t => t.status === 'completed');
-    const pendingTxns = allTransactions.filter(t => t.status === 'pending');
-
-    setFinancialStats({
-      totalDeposits: completedTxns
-        .filter(t => t.type === 'deposit')
-        .reduce((sum, t) => sum + Number(t.amount), 0),
-      totalWithdrawals: completedTxns
-        .filter(t => t.type === 'withdrawal')
-        .reduce((sum, t) => sum + Number(t.amount), 0),
-      pendingTransactions: pendingTxns.length,
-      totalBalance: wallets?.reduce((sum, w) => sum + Number(w.balance), 0) || 0,
-    });
-  };
-
-  const loadTradingStats = async () => {
-    const { data: allTrades } = await supabase
-      .from("trades")
-      .select("status, profit, closed_at");
-
-    if (!allTrades) return;
-
-    const closedTrades = allTrades.filter(t => t.status === 'closed');
-    const winningTrades = closedTrades.filter(t => Number(t.profit) > 0);
-
-    setTradingStats({
-      totalTrades: allTrades.length,
-      activeTrades: allTrades.filter(t => t.status === 'open').length,
-      totalProfit: closedTrades.reduce((sum, t) => sum + Number(t.profit || 0), 0),
-      avgWinRate: closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0,
-    });
-  };
-
-  const loadRecentUsers = async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("user_id, full_name, created_at")
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    setRecentUsers(data || []);
-  };
-
-  const handleApproveTransaction = async (transactionId: string) => {
-    const { error } = await supabase.rpc("approve_transaction", {
-      p_transaction_id: transactionId,
-    });
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
+    if (data) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const week = new Date(today); week.setDate(week.getDate() - 7);
+      const month = new Date(today); month.setMonth(month.getMonth() - 1);
+      setUserStats({
+        total: data.length,
+        today: data.filter(u => new Date(u.created_at) >= today).length,
+        week: data.filter(u => new Date(u.created_at) >= week).length,
+        month: data.filter(u => new Date(u.created_at) >= month).length,
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Transaction approved",
-      });
-      loadData();
+      setRecentUsers(data.slice(0, 8));
+
+      // Growth chart data
+      const growth: any[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(); d.setMonth(d.getMonth() - i);
+        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        const count = data.filter(u => {
+          const c = new Date(u.created_at);
+          return c >= monthStart && c <= monthEnd;
+        }).length;
+        growth.push({ month: d.toLocaleDateString("en-US", { month: "short" }), users: count });
+      }
+      setGrowthData(growth);
     }
   };
 
-  const handleRejectTransaction = async (transactionId: string) => {
-    const { error } = await supabase
-      .from("transactions")
-      .update({ status: "rejected" })
-      .eq("id", transactionId);
+  const loadStats = async () => {
+    const [txns, wallets, trades] = await Promise.all([
+      supabase.from("transactions").select("type, amount, status"),
+      supabase.from("wallets").select("balance"),
+      supabase.from("trades").select("status, profit"),
+    ]);
 
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
+    if (txns.data) {
+      const completed = txns.data.filter(t => t.status === "completed");
+      setFinancialStats({
+        deposits: completed.filter(t => t.type === "deposit").reduce((s, t) => s + Number(t.amount), 0),
+        withdrawals: completed.filter(t => t.type === "withdrawal").reduce((s, t) => s + Number(t.amount), 0),
+        pending: txns.data.filter(t => t.status === "pending").length,
+        totalBalance: wallets.data?.reduce((s, w) => s + Number(w.balance), 0) || 0,
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Transaction rejected",
+    }
+
+    if (trades.data) {
+      const closed = trades.data.filter(t => t.status === "closed");
+      const wins = closed.filter(t => Number(t.profit) > 0);
+      setTradingStats({
+        total: trades.data.length,
+        active: trades.data.filter(t => t.status === "open").length,
+        profit: closed.reduce((s, t) => s + Number(t.profit || 0), 0),
+        winRate: closed.length > 0 ? (wins.length / closed.length) * 100 : 0,
       });
-      loadData();
     }
   };
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
+  const handleApprove = async (id: string) => {
+    const { error } = await supabase.rpc("approve_transaction", { p_transaction_id: id });
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { toast({ title: "Approved ✓" }); loadTransactions(); loadStats(); }
+  };
 
-  if (!isAdmin) {
-    return null;
-  }
+  const handleReject = async (id: string) => {
+    const { error } = await supabase.from("transactions").update({ status: "rejected" }).eq("id", id);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { toast({ title: "Rejected" }); loadTransactions(); }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadAll();
+    setRefreshing(false);
+    toast({ title: "Refreshed" });
+  };
+
+  if (loading) return (
+    <AppLayout title="Admin">
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    </AppLayout>
+  );
+
+  if (!isAdmin) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-              <p className="text-muted-foreground">System overview and management</p>
+    <AppLayout title="Admin Dashboard" subtitle="Platform overview and management">
+      <div className="flex items-center justify-between mb-6">
+        <Badge variant="secondary" className="bg-warning/15 text-warning border border-warning/30 px-3 py-1">
+          Admin Panel
+        </Badge>
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="gap-2">
+          <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="bg-card/80 border border-border/60 p-1 rounded-xl gap-1">
+          {["overview", "transactions", "users"].map((tab) => (
+            <TabsTrigger key={tab} value={tab} className="rounded-lg capitalize text-xs data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
+              {tab}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {/* OVERVIEW */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Top Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: "Total Users", value: userStats.total, sub: `+${userStats.today} today`, icon: Users, color: "primary" },
+              { label: "Total Balance", value: `$${financialStats.totalBalance.toFixed(0)}`, sub: "Across all wallets", icon: WalletIcon, color: "success" },
+              { label: "Total Deposits", value: `$${financialStats.deposits.toFixed(0)}`, sub: "Completed", icon: DollarSign, color: "success" },
+              { label: "Pending Txns", value: financialStats.pending, sub: "Awaiting approval", icon: AlertTriangle, color: financialStats.pending > 0 ? "warning" : "muted" },
+            ].map((stat, i) => {
+              const Icon = stat.icon;
+              return (
+                <div key={i} className="card-glass rounded-xl p-4 animate-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+                  <div className={cn("w-8 h-8 rounded-lg mb-3 flex items-center justify-center",
+                    stat.color === "primary" ? "bg-primary/15 text-primary" :
+                    stat.color === "success" ? "bg-success/15 text-success" :
+                    stat.color === "warning" ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground"
+                  )}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <p className="text-xl font-bold font-mono">{stat.value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">{stat.sub}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* User Growth */}
+            <div className="card-glass rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">User Growth (12 months)</h3>
+              </div>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={growthData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 18% 18%)" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fill: "hsl(215 20% 58%)", fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fill: "hsl(215 20% 58%)", fontSize: 10 }} tickLine={false} axisLine={false} width={25} />
+                    <Tooltip contentStyle={{ background: "hsl(222 24% 12%)", border: "1px solid hsl(222 18% 18%)", borderRadius: "8px", fontSize: "12px" }} />
+                    <Bar dataKey="users" fill="hsl(189 100% 48%)" radius={[3, 3, 0, 0]} opacity={0.85} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Trading Stats */}
+            <div className="card-glass rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Trading Overview</h3>
+              </div>
+              <div className="space-y-4">
+                {[
+                  { label: "Total Trades", value: tradingStats.total, icon: Activity },
+                  { label: "Active Trades", value: tradingStats.active, icon: Activity },
+                  { label: "Total Profit", value: `$${tradingStats.profit.toFixed(2)}`, icon: TrendingUp },
+                  { label: "Avg Win Rate", value: `${tradingStats.winRate.toFixed(1)}%`, icon: BarChart3 },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">{item.label}</span>
+                      </div>
+                      <span className="text-sm font-mono font-semibold">{item.value}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-          <Badge variant="secondary" className="px-4 py-2">
-            Admin Panel
-          </Badge>
-        </div>
 
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="copy-trading">Copy Trading</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
-            {/* User Statistics */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats.totalUsers}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {userStats.newUsersToday} new today
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats.activeUsers}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Currently active
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">New This Week</CardTitle>
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats.newUsersThisWeek}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Last 7 days
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">New This Month</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats.newUsersThisMonth}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Last 30 days
-                  </p>
-                </CardContent>
-              </Card>
+          {/* Recent Signups */}
+          <div className="card-glass rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-border/40">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Recent Signups</h3>
+              </div>
+              <Badge variant="secondary">{userStats.week} this week</Badge>
             </div>
-
-            {/* Financial Statistics */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">${financialStats.totalDeposits.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">
-                    All time
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Withdrawals</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">${financialStats.totalWithdrawals.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">
-                    All time
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-                  <WalletIcon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">${financialStats.totalBalance.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Across all wallets
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{financialStats.pendingTransactions}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Awaiting approval
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Trading Statistics */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{tradingStats.totalTrades}</div>
-                  <p className="text-xs text-muted-foreground">
-                    All time
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Trades</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{tradingStats.activeTrades}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Currently open
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">${tradingStats.totalProfit.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">
-                    All closed trades
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Win Rate</CardTitle>
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{tradingStats.avgWinRate.toFixed(1)}%</div>
-                  <p className="text-xs text-muted-foreground">
-                    System wide
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent Signups */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Signups</CardTitle>
-                <CardDescription>Latest users who joined the platform</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {recentUsers.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">No users yet</p>
-                  ) : (
-                    recentUsers.map((user) => (
-                      <div key={user.user_id} className="flex items-center justify-between border-b pb-3">
-                        <div>
-                          <p className="font-medium text-foreground">{user.full_name || "Unknown"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(user.created_at).toLocaleDateString()} at{" "}
-                            {new Date(user.created_at).toLocaleTimeString()}
-                          </p>
-                        </div>
-                        <Badge variant="outline">New</Badge>
-                      </div>
-                    ))
-                  )}
+            <div className="divide-y divide-border/30">
+              {recentUsers.map((user) => (
+                <div key={user.user_id} className="flex items-center justify-between px-5 py-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
+                      {(user.full_name || user.username || "U").charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{user.full_name || user.username || "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground">@{user.username || "—"}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-mono font-medium text-success">
+                      ${Number(user.wallets?.[0]?.balance || 0).toFixed(2)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {new Date(user.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
 
-          <TabsContent value="transactions" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Pending Transactions</CardTitle>
-                <CardDescription>Review and approve user transactions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {transactions.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">No pending transactions</p>
-                  ) : (
-                    transactions.map((transaction) => (
-                      <div key={transaction.id} className="flex justify-between items-center border-b pb-4">
-                        <div>
-                          <p className="font-medium capitalize">{transaction.type}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Amount: ${transaction.amount}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Method: {transaction.payment_method}
-                          </p>
-                          {transaction.notes && (
-                            <p className="text-sm text-muted-foreground">Notes: {transaction.notes}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApproveTransaction(transaction.id)}
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleRejectTransaction(transaction.id)}
-                          >
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Reject
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+        {/* TRANSACTIONS */}
+        <TabsContent value="transactions">
+          <div className="card-glass rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-border/40">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Pending Transactions</h3>
+              </div>
+              <Badge variant="secondary" className={cn(transactions.length > 0 && "bg-warning/15 text-warning border border-warning/30")}>
+                {transactions.length} pending
+              </Badge>
+            </div>
+            <div className="divide-y divide-border/30">
+              {transactions.length === 0 ? (
+                <div className="py-16 text-center">
+                  <CheckCircle className="w-10 h-10 text-success/40 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">All caught up! No pending transactions.</p>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <Users className="inline mr-2 h-5 w-5" />
-                  User Management
-                </CardTitle>
-                <CardDescription>View all registered users</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {users.map((userData) => (
-                    <div key={userData.id} className="flex justify-between items-center border-b pb-4">
+              ) : (
+                transactions.map((tx) => (
+                  <div key={tx.id} className="flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center",
+                        tx.type === "deposit" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
+                      )}>
+                        <ArrowUpRight className={cn("w-4 h-4", tx.type !== "deposit" && "rotate-180")} />
+                      </div>
                       <div>
-                        <p className="font-medium">{userData.full_name || "N/A"}</p>
-                        <p className="text-sm text-muted-foreground">{userData.phone || "N/A"}</p>
-                        <p className="text-sm text-muted-foreground">{userData.country || "N/A"}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold">
-                          <DollarSign className="inline h-4 w-4" />
-                          {userData.wallets?.[0]?.balance?.toFixed(2) || "0.00"}
+                        <p className="text-sm font-semibold capitalize">{tx.type}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {tx.profiles?.full_name || tx.profiles?.username || "Unknown"} ·
+                          {" "}{new Date(tx.created_at).toLocaleDateString()} ·
+                          {tx.payment_method && ` ${tx.payment_method}`}
                         </p>
+                        {tx.notes && <p className="text-xs text-muted-foreground/70">{tx.notes}</p>}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="copy-trading">
-            <Card>
-              <CardHeader>
-                <CardTitle>Copy Trading Relationships</CardTitle>
-                <CardDescription>View active copy trading connections</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {copyRelationships.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">No active relationships</p>
-                  ) : (
-                    copyRelationships.map((rel) => (
-                      <div key={rel.id} className="flex justify-between items-center border-b pb-4">
-                        <div>
-                          <p className="font-medium">Follower: {rel.profiles?.full_name || "N/A"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Risk: {rel.risk_percentage}%
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Status: {rel.is_active ? "Active" : "Inactive"}
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <span className={cn("text-sm font-mono font-bold",
+                        tx.type === "deposit" ? "text-success" : "text-destructive"
+                      )}>
+                        {tx.type === "deposit" ? "+" : "-"}${Number(tx.amount).toFixed(2)}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => handleApprove(tx.id)} className="h-8 text-xs gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleReject(tx.id)} className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
+                          <XCircle className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
-                    ))
-                  )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* USERS */}
+        <TabsContent value="users">
+          <div className="card-glass rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-border/40">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">All Users</h3>
+              </div>
+              <Badge variant="secondary">{userStats.total} total</Badge>
+            </div>
+            <div className="divide-y divide-border/30">
+              {users.map((u) => (
+                <div key={u.user_id} className="flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center text-sm font-bold text-muted-foreground">
+                      {(u.full_name || u.username || "U").charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{u.full_name || "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground">@{u.username || "—"}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-mono font-semibold text-success">
+                      ${Number(u.wallets?.[0]?.balance || 0).toFixed(2)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {new Date(u.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </AppLayout>
   );
 }
