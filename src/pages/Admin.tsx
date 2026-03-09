@@ -397,6 +397,41 @@ export default function Admin() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Reject Modal */}
+      <Dialog open={rejectModal.open} onOpenChange={(o) => setRejectModal(prev => ({ ...prev, open: o }))}>
+        <DialogContent className="bg-card border-border/60">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-destructive" />
+              Reject Transaction
+            </DialogTitle>
+            <DialogDescription>
+              Rejecting {rejectModal.txType} of ${rejectModal.txAmount.toFixed(2)}. The user will be notified with your reason.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm">Rejection Reason <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                className="mt-1.5"
+                placeholder="e.g. Insufficient verification documents..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setRejectModal(prev => ({ ...prev, open: false }))}>
+                Cancel
+              </Button>
+              <Button variant="destructive" className="flex-1 gap-2" onClick={handleConfirmReject}>
+                <Bell className="w-3.5 h-3.5" />
+                Reject & Notify User
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
