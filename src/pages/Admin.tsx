@@ -348,8 +348,9 @@ export default function Admin() {
                           <CheckCircle className="w-3.5 h-3.5" />
                           Approve
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleReject(tx.id)} className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
+                        <Button size="sm" variant="outline" onClick={() => handleReject(tx.id)} className="h-8 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10">
                           <XCircle className="w-3.5 h-3.5" />
+                          Reject
                         </Button>
                       </div>
                     </div>
