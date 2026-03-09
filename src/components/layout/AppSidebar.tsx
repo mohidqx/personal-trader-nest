@@ -7,12 +7,12 @@ import {
   Users,
   Shield,
   UserCircle,
-  Settings,
   TrendingUp,
   LogOut,
   ChevronLeft,
   BarChart3,
   ShieldCheck,
+  Activity,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,7 @@ interface AppSidebarProps {
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Trades", url: "/trades", icon: Activity },
   { title: "Wallet", url: "/wallet", icon: Wallet },
   { title: "MT5 Accounts", url: "/mt5-accounts", icon: Link2 },
   { title: "Copy Trading", url: "/copy-trading", icon: Users },

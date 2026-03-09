@@ -12,6 +12,7 @@ import MT5Accounts from "./pages/MT5Accounts";
 import Admin from "./pages/Admin";
 import CopyTrading from "./pages/CopyTrading";
 import Security from "./pages/Security";
+import Trades from "./pages/Trades";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/admin" element={<Admin />} />
           <Route path="/copy-trading" element={<CopyTrading />} />
           <Route path="/security" element={<Security />} />
+          <Route path="/trades" element={<Trades />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -487,6 +487,10 @@ export type Database = {
         }
         Returns: string
       }
+      reject_transaction: {
+        Args: { p_reason?: string; p_transaction_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "user"

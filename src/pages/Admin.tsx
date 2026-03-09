@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   CheckCircle, XCircle, Users, DollarSign, TrendingUp,
   Activity, UserPlus, Wallet as WalletIcon, BarChart3, RefreshCw,
-  AlertTriangle, ArrowUpRight
+  AlertTriangle, ArrowUpRight, Bell
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,8 @@ export default function Admin() {
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
   const [growthData, setGrowthData] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [rejectModal, setRejectModal] = useState<{ open: boolean; txId: string; txAmount: number; txType: string }>({ open: false, txId: "", txAmount: 0, txType: "" });
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     checkAdmin();
@@ -128,9 +132,22 @@ export default function Admin() {
   };
 
   const handleReject = async (id: string) => {
-    const { error } = await supabase.from("transactions").update({ status: "rejected" }).eq("id", id);
+    const tx = transactions.find(t => t.id === id);
+    setRejectReason("");
+    setRejectModal({ open: true, txId: id, txAmount: tx?.amount || 0, txType: tx?.type || "" });
+  };
+
+  const handleConfirmReject = async () => {
+    const { error } = await supabase.rpc("reject_transaction" as any, {
+      p_transaction_id: rejectModal.txId,
+      p_reason: rejectReason || "No reason provided",
+    });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: "Rejected" }); loadTransactions(); }
+    else {
+      toast({ title: "Rejected", description: "User has been notified." });
+      setRejectModal({ open: false, txId: "", txAmount: 0, txType: "" });
+      loadTransactions();
+    }
   };
 
   const handleRefresh = async () => {
@@ -331,8 +348,9 @@ export default function Admin() {
                           <CheckCircle className="w-3.5 h-3.5" />
                           Approve
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleReject(tx.id)} className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
+                        <Button size="sm" variant="outline" onClick={() => handleReject(tx.id)} className="h-8 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10">
                           <XCircle className="w-3.5 h-3.5" />
+                          Reject
                         </Button>
                       </div>
                     </div>
@@ -379,6 +397,41 @@ export default function Admin() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Reject Modal */}
+      <Dialog open={rejectModal.open} onOpenChange={(o) => setRejectModal(prev => ({ ...prev, open: o }))}>
+        <DialogContent className="bg-card border-border/60">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-destructive" />
+              Reject Transaction
+            </DialogTitle>
+            <DialogDescription>
+              Rejecting {rejectModal.txType} of ${rejectModal.txAmount.toFixed(2)}. The user will be notified with your reason.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm">Rejection Reason <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                className="mt-1.5"
+                placeholder="e.g. Insufficient verification documents..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setRejectModal(prev => ({ ...prev, open: false }))}>
+                Cancel
+              </Button>
+              <Button variant="destructive" className="flex-1 gap-2" onClick={handleConfirmReject}>
+                <Bell className="w-3.5 h-3.5" />
+                Reject & Notify User
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
