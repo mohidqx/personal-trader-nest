@@ -7,12 +7,12 @@ import {
   Users,
   Shield,
   UserCircle,
-  Settings,
   TrendingUp,
   LogOut,
   ChevronLeft,
   BarChart3,
   ShieldCheck,
+  Activity,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";

@@ -12,6 +12,7 @@ import MT5Accounts from "./pages/MT5Accounts";
 import Admin from "./pages/Admin";
 import CopyTrading from "./pages/CopyTrading";
 import Security from "./pages/Security";
+import Trades from "./pages/Trades";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
