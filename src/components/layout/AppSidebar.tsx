@@ -29,13 +29,16 @@ interface AppSidebarProps {
 }
 
 const navItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Trades", url: "/trades", icon: Activity },
-  { title: "Wallet", url: "/wallet", icon: Wallet },
-  { title: "MT5 Accounts", url: "/mt5-accounts", icon: Link2 },
-  { title: "Copy Trading", url: "/copy-trading", icon: Users },
-  { title: "Security", url: "/security", icon: Shield },
-  { title: "Profile", url: "/profile", icon: UserCircle },
+  { title: "Dashboard",    url: "/dashboard",    icon: LayoutDashboard },
+  { title: "Trades",       url: "/trades",       icon: Activity        },
+  { title: "Charts",       url: "/chart",        icon: LineChart       },
+  { title: "Analytics",    url: "/analytics",    icon: PieChart        },
+  { title: "Leaderboard",  url: "/leaderboard",  icon: Trophy          },
+  { title: "Wallet",       url: "/wallet",       icon: Wallet          },
+  { title: "MT5 Accounts", url: "/mt5-accounts", icon: Link2           },
+  { title: "Copy Trading", url: "/copy-trading", icon: Users           },
+  { title: "Security",     url: "/security",     icon: Shield          },
+  { title: "Profile",      url: "/profile",      icon: UserCircle      },
 ];
 
 const adminItems = [
