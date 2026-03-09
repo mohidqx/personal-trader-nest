@@ -33,6 +33,8 @@ export default function Admin() {
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
   const [growthData, setGrowthData] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [rejectModal, setRejectModal] = useState<{ open: boolean; txId: string; txAmount: number; txType: string }>({ open: false, txId: "", txAmount: 0, txType: "" });
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     checkAdmin();
