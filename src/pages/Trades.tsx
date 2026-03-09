@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  TrendingUp, TrendingDown, Search, Filter, RefreshCw,
-  BarChart3, Activity, Target, DollarSign, Clock,
+  TrendingUp, TrendingDown, Search, RefreshCw,
+  BarChart3, Activity, Target, DollarSign,
   ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight,
-  Layers, Zap, CheckCircle2, XCircle
+  Layers, Zap, CheckCircle2, XCircle, Wifi, Radio
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -31,26 +31,136 @@ interface Trade {
   mt5_account_id: string | null;
 }
 
-// Generate P&L sparkline for a trade
-function generatePnLSparkline(openPrice: number, closePrice: number | null, type: string) {
-  const steps = 20;
-  const data = [];
-  const end = closePrice ?? openPrice * (type === "buy" ? 1.0012 : 0.9988);
-  for (let i = 0; i <= steps; i++) {
-    const progress = i / steps;
-    const noise = (Math.random() - 0.5) * (openPrice * 0.0008);
-    const price = openPrice + (end - openPrice) * progress + noise;
-    const pnl = type === "buy" ? (price - openPrice) * 1000 : (openPrice - price) * 1000;
-    data.push({ i, pnl: Math.round(pnl * 100) / 100 });
-  }
-  return data;
+// Simulated pip values per symbol
+const PIP_MAP: Record<string, number> = {
+  "EUR/USD": 0.0001, "GBP/USD": 0.0001, "USD/JPY": 0.01,
+  "AUD/USD": 0.0001, "USD/CAD": 0.0001, "USD/CHF": 0.0001,
+  "BTC/USD": 1, "ETH/USD": 0.01, "XAU/USD": 0.01,
+  DEFAULT: 0.0001,
+};
+
+// Live P&L simulation for open trades
+function useLivePnL(openTrades: Trade[]) {
+  const [livePnL, setLivePnL] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    openTrades.forEach(t => { init[t.id] = t.profit ?? 0; });
+    return init;
+  });
+  const pricesRef = useRef<Record<string, number>>({});
+
+  // Seed initial prices
+  useEffect(() => {
+    openTrades.forEach(t => {
+      if (!pricesRef.current[t.id]) pricesRef.current[t.id] = t.open_price;
+    });
+  }, [openTrades.length]);
+
+  useEffect(() => {
+    if (openTrades.length === 0) return;
+    const tick = () => {
+      setLivePnL(prev => {
+        const next = { ...prev };
+        openTrades.forEach(t => {
+          const pip = PIP_MAP[t.symbol] ?? PIP_MAP.DEFAULT;
+          const delta = (Math.random() - 0.495) * pip * 4;
+          pricesRef.current[t.id] = (pricesRef.current[t.id] ?? t.open_price) + delta;
+          const currentPrice = pricesRef.current[t.id];
+          const priceDiff = t.type === "buy"
+            ? currentPrice - t.open_price
+            : t.open_price - currentPrice;
+          // Approximate: 1 pip = $10 for standard lot, scale by volume
+          const lotMultiplier = (1 / pip) * 0.001 * t.volume;
+          next[t.id] = Math.round(priceDiff * lotMultiplier * 1000) / 10;
+        });
+        return next;
+      });
+    };
+    const id = setInterval(tick, 5000);
+    tick(); // immediate first tick
+    return () => clearInterval(id);
+  }, [openTrades]);
+
+  return livePnL;
+}
+
+// Live P&L ticker banner for open positions
+function LivePnLTicker({ openTrades, livePnL }: { openTrades: Trade[]; livePnL: Record<string, number> }) {
+  const totalLive = Object.values(livePnL).reduce((s, v) => s + v, 0);
+  const [pulse, setPulse] = useState(false);
+
+  useEffect(() => {
+    setPulse(true);
+    const t = setTimeout(() => setPulse(false), 400);
+    return () => clearTimeout(t);
+  }, [Math.round(totalLive)]);
+
+  if (openTrades.length === 0) return null;
+
+  return (
+    <div className={cn(
+      "card-glass rounded-xl mb-5 border overflow-hidden transition-all duration-300",
+      totalLive >= 0 ? "border-success/25" : "border-destructive/25"
+    )}>
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/40">
+        <div className="flex items-center gap-2">
+          <Radio className="w-3.5 h-3.5 text-success animate-pulse" />
+          <span className="text-xs font-semibold">Live Open Positions</span>
+          <Badge variant="outline" className="text-[10px] border-success/30 text-success">{openTrades.length} active</Badge>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Total Float:</span>
+          <span className={cn(
+            "text-sm font-bold font-mono transition-all duration-300",
+            pulse && "scale-110",
+            totalLive >= 0 ? "text-success" : "text-destructive"
+          )}>
+            {totalLive >= 0 ? "+" : ""}${totalLive.toFixed(2)}
+          </span>
+        </div>
+      </div>
+      <div className="flex gap-0 overflow-x-auto scrollbar-none">
+        {openTrades.map(t => {
+          const pnl = livePnL[t.id] ?? 0;
+          const isPos = pnl >= 0;
+          return (
+            <div key={t.id} className={cn(
+              "flex-shrink-0 px-4 py-3 border-r border-border/30 last:border-0 min-w-36",
+              isPos ? "bg-success/5" : "bg-destructive/5"
+            )}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md",
+                  t.type === "buy" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
+                )}>
+                  {t.type.toUpperCase()}
+                </span>
+                <span className="text-xs font-mono font-semibold">{t.symbol}</span>
+              </div>
+              <p className={cn("text-sm font-bold font-mono transition-colors duration-300", isPos ? "text-success" : "text-destructive")}>
+                {isPos ? "+" : ""}${pnl.toFixed(2)}
+              </p>
+              <p className="text-[10px] text-muted-foreground">{t.volume} lots · {new Date(t.opened_at).toLocaleTimeString()}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function TradePnLSparkline({ trade }: { trade: Trade }) {
-  const data = useMemo(
-    () => generatePnLSparkline(trade.open_price, trade.close_price, trade.type),
-    [trade.id]
-  );
+  const data = useMemo(() => {
+    const steps = 20;
+    const result = [];
+    const end = trade.close_price ?? trade.open_price * (trade.type === "buy" ? 1.0012 : 0.9988);
+    for (let i = 0; i <= steps; i++) {
+      const progress = i / steps;
+      const noise = (Math.random() - 0.5) * (trade.open_price * 0.0008);
+      const price = trade.open_price + (end - trade.open_price) * progress + noise;
+      const pnl = trade.type === "buy" ? (price - trade.open_price) * 1000 : (trade.open_price - price) * 1000;
+      result.push({ i, pnl: Math.round(pnl * 100) / 100 });
+    }
+    return result;
+  }, [trade.id]);
   const isProfit = (trade.profit ?? 0) >= 0;
   const color = isProfit ? "hsl(142 76% 45%)" : "hsl(0 84% 60%)";
 
@@ -228,6 +338,10 @@ export default function Trades() {
     });
   }, []);
 
+  // Live P&L for open trades
+  const openTrades = useMemo(() => trades.filter(t => t.status === "open"), [trades]);
+  const livePnL = useLivePnL(openTrades);
+
   const loadTrades = async (userId: string, silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
@@ -301,6 +415,9 @@ export default function Trades() {
 
   return (
     <AppLayout title="Trades" subtitle="Full trade history with analytics & P&L breakdown">
+      {/* Live P&L Ticker for open positions */}
+      <LivePnLTicker openTrades={openTrades} livePnL={livePnL} />
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
         {[
