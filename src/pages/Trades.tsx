@@ -148,10 +148,19 @@ function LivePnLTicker({ openTrades, livePnL }: { openTrades: Trade[]; livePnL: 
 }
 
 function TradePnLSparkline({ trade }: { trade: Trade }) {
-  const data = useMemo(
-    () => generatePnLSparkline(trade.open_price, trade.close_price, trade.type),
-    [trade.id]
-  );
+  const data = useMemo(() => {
+    const steps = 20;
+    const result = [];
+    const end = trade.close_price ?? trade.open_price * (trade.type === "buy" ? 1.0012 : 0.9988);
+    for (let i = 0; i <= steps; i++) {
+      const progress = i / steps;
+      const noise = (Math.random() - 0.5) * (trade.open_price * 0.0008);
+      const price = trade.open_price + (end - trade.open_price) * progress + noise;
+      const pnl = trade.type === "buy" ? (price - trade.open_price) * 1000 : (trade.open_price - price) * 1000;
+      result.push({ i, pnl: Math.round(pnl * 100) / 100 });
+    }
+    return result;
+  }, [trade.id]);
   const isProfit = (trade.profit ?? 0) >= 0;
   const color = isProfit ? "hsl(142 76% 45%)" : "hsl(0 84% 60%)";
 
