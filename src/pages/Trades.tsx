@@ -415,6 +415,9 @@ export default function Trades() {
 
   return (
     <AppLayout title="Trades" subtitle="Full trade history with analytics & P&L breakdown">
+      {/* Live P&L Ticker for open positions */}
+      <LivePnLTicker openTrades={openTrades} livePnL={livePnL} />
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
         {[
