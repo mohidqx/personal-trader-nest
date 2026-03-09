@@ -13,6 +13,9 @@ import Admin from "./pages/Admin";
 import CopyTrading from "./pages/CopyTrading";
 import Security from "./pages/Security";
 import Trades from "./pages/Trades";
+import Chart from "./pages/Chart";
+import Leaderboard from "./pages/Leaderboard";
+import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
